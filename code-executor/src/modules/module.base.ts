@@ -11,8 +11,11 @@ import Shell from "child_process"
  * An execution module describes the way a language should be compiled and run.
  * 
  * For example in C you need to compile the language and then run the out file.
+ * TODO: Turn abstract, note lots of bs ahead.
  */
  class ExecutionModule {
+	public extension: string = "";
+
 	protected code: string;
 	protected flags: string;
 
@@ -26,10 +29,8 @@ import Shell from "child_process"
 		this.flags = flags;
 	}
 
-	/**
-	 * Spawn a child process and 
-	 */
-	execute(cb: (err: Shell.ExecException, stderr: string, stdout: string) => void): void {
+	/** Spawn a child process and */
+	public execute(file: string, cb: (err: Shell.ExecException | null, stderr: string, stdout: string) => void): void {
 		cb(new Error("Invalid module"), "", "");
 	}
 }

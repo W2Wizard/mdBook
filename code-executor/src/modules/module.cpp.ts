@@ -3,6 +3,7 @@
 // See README in the root project for more information.
 // -----------------------------------------------------------------------------
 
+import Shell from "child_process"
 import ExecutionModule from "./module.base";
 
 /*============================================================================*/
@@ -12,10 +13,7 @@ class CPPExecutor extends ExecutionModule {
 		super(code, flags)
 	}
 
-	/**
-	 * Executes the code
-	 */
-	public execute(cb: (err, stderr, stdout) => void): void {
+	public execute(file: string, cb: (err: Shell.ExecException | null, stderr: string, stdout: string) => void): void {
 
 	}
 }

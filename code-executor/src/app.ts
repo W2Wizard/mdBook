@@ -7,6 +7,7 @@ import cors from "cors";
 import express from "express";
 import { Request, Response, NextFunction } from "express";
 import { Execution } from "./executor";
+// import config from "./config.json";
 
 // Globals
 /*============================================================================*/
@@ -38,6 +39,9 @@ webserv.post('/playground/', (req, res) => {
 		return res.status(400).json({ result: null, error: "Incorrect content type!" });
 	if (code == null || languange == null || flags == null)
 		return res.status(400).json({ result: null, error: "Malformed body" });
+	// TODO: Get from config.
+	if (req.headers.origin && !req.headers.origin.includes("codam.nl"))
+		return res.status(403).json({ result: null, error: "Non-valid origin" });
 
 	// TODO: Check from which domain the request came from.
 	// TODO: Probs add a few more checks here for unwanted requests.
