@@ -13,13 +13,16 @@ import { Modules } from "./module.base"
 export async function ExecuteC(file: string, flags: string): Modules.ReturnType {
 	// Compile, execute and remove binary
 	const binary = Path.join(Path.dirname(file), Path.parse(file).name);
-	const execution = new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
+
+	const execution = new Promise<string>((resolve, reject) => {
 		Shell.execSync(`gcc ${flags} ${file} -o ${binary}`, { timeout: 10000 });
 		Shell.execFile(binary, { timeout: 10000 }, (err, stdout, stderr) => {
-			if (err) return reject(err);
-
 			fs.rmSync(binary, { force: true, recursive: true });
-			return resolve({ stdout: stdout, stderr: stderr });
+			
+			if (err) return reject(err);
+			if (stderr.length > 0) return reject(stderr);
+
+			return resolve(stdout);
 		});
 	});
 
@@ -28,7 +31,6 @@ export async function ExecuteC(file: string, flags: string): Modules.ReturnType 
 		return [data, null]
 	}
 	catch (error) {
-		console.error(error);
 		return [null, error];
 	}
 }

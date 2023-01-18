@@ -3,14 +3,11 @@
 // See README in the root project for more information.
 // -----------------------------------------------------------------------------
 
-// import tmp from "tmp";
-// import Path from "path";
-// import crypto from "crypto"
 import cors from "cors";
 import express from "express";
-import { Request, Response, NextFunction } from "express";
-import { Execution } from "./executor";
 // import config from "./config.json";
+import { Execution } from "./executor";
+import { Request, Response, NextFunction } from "express";
 
 // Globals
 /*============================================================================*/
@@ -32,7 +29,7 @@ webserv.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Routes
 /*============================================================================*/
 
-webserv.post('/playground/', async (req, res) => {
+webserv.post('/playground/', (req, res) => {
 	const code = req.body.code;
 	const flags = req.body.flags;
 	const language = req.body.language;
@@ -45,8 +42,8 @@ webserv.post('/playground/', async (req, res) => {
 
 	// TODO: Get from config.
 	// TODO: Check from which domain the request came from.
-	if (req.headers.origin && !req.headers.origin.includes("codam.nl"))
-		return res.status(403).json({ result: null, error: "Non-valid origin" });
+	// if (req.headers.origin && !req.headers.origin.includes(".codam.nl"))
+		// return res.status(403).json({ result: null, error: "Non-valid origin" });
 
 	// TODO: Probs add a few more checks here for unwanted requests.
 
@@ -55,24 +52,14 @@ webserv.post('/playground/', async (req, res) => {
 	if (module == undefined)
 		return res.status(404).json({ result: null, error: "Unsupported Language!" });
 
-	console.log(`[Playground] [${language}] body:`, code);
-
-	try {
-		const out = await Execution.run(module, code, flags);
-		res.status(201).json({
-			result: out.stderr != "" ? out.stderr : out.stdout,
-			error: null
-		});
-	} catch (error) {
-		res.status(500).json({ result: null, error: error }).end();
-	}
-	return;
+	console.log(`[Playground] Request for lang: ${language} using flags: ${flags}`);
+	return Execution.run(module, code, flags)
+	.then((output) => res.status(201).json({ result: output, error: null }))
+	.catch((error) => res.status(422).json({ result: null, error: error.message }));
 });
 
 
 // Entry point
 /*============================================================================*/
 
-webserv.listen(port, () => {
-	console.log(`[Playground] Running on: ${port}`);
-});
+webserv.listen(port, () => console.log(`[Playground] Running on: ${port}`));

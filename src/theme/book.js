@@ -234,8 +234,10 @@ function get_playground_text(playground, hidden = true) {
             return;
         }
 
+        // TODO: Fetch MD parameters and pass them here
         const params = {
-            lang: lang,
+            language: lang,
+            flags: "-Wextra -Werror -Wall",
             code: get_playground_text(code_block).trim()
         }
 
@@ -248,13 +250,19 @@ function get_playground_text(playground, hidden = true) {
             mode: 'cors',
             body: JSON.stringify(params)
         })
-        .then(response => response.json())
         .then(response => {
-            if (response.result.trim() === '') {
+            if (response.status >= 500)
+                throw new Error(response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            if ("error" in data)
+                throw new Error(data.error);
+            else if (typeof data.result == "string" && data.result.trim() === '') {
                 result_block.innerText = "No output";
                 result_block.classList.add("result-no-output");
             } else {
-                result_block.innerText = response.result;
+                result_block.innerText = data.result;
                 result_block.classList.remove("result-no-output");
             }
         })
@@ -589,8 +597,7 @@ function get_playground_text(playground, hidden = true) {
     });
 
     Array.from(clipButtons).forEach((clipButton) =>
-        clipButton.addEventListener('mouseout', hideTooltip(e.currentTarget))
-    );
+        clipButton.addEventListener('mouseout', (e) => hideTooltip(e.currentTarget)));
 
     clipboardSnippets.on('success', (e) => {
         e.clearSelection();

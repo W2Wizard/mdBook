@@ -7,5 +7,5 @@
 
 export namespace Modules {
 	export type Function = (file: string, flags: string) => ReturnType;
-	export type ReturnType = Promise<[{ stdout: string, stderr: string } | null, any | null]>;
+	export type ReturnType = Promise<[string | null, string | null]>;
 }
