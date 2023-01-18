@@ -3,31 +3,32 @@
 // See README in the root project for more information.
 // -----------------------------------------------------------------------------
 
+import fs from "fs";
 import Path from "path";
 import Shell from "child_process";
-import ExecutionModule from "./module.base";
+import { Modules } from "./module.base"
 
 /*============================================================================*/
 
-class CExecutor extends ExecutionModule {
-	constructor(code: string, flags: string) {
-		super(code, flags)
-		this.extension = ".c";
+export async function ExecuteC(file: string, flags: string): Modules.ReturnType {
+	// Compile, execute and remove binary
+	const binary = Path.join(Path.dirname(file), Path.parse(file).name);
+	const execution = new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
+		Shell.execSync(`gcc ${flags} ${file} -o ${binary}`, { timeout: 10000 });
+		Shell.execFile(binary, { timeout: 10000 }, (err, stdout, stderr) => {
+			if (err) return reject(err);
+
+			fs.rmSync(binary, { force: true, recursive: true });
+			return resolve({ stdout: stdout, stderr: stderr });
+		});
+	});
+
+	try { 
+		const data = await execution;
+		return [data, null]
 	}
-
-	/**
-	 * Compiles and executes the code
-	 */
-	public execute(file: string, cb: (err: Shell.ExecException | null, stderr: string, stdout: string) => void): void {
-
-		// Compile it
-		Shell.exec(`gcc ${this.flags} ${file} -o output.out`, {
-			timeout: 10000
-		}, (err, stdout: string, stderr: string) => cb(err, stderr, stdout));
-
-		// Execute it.
-		Shell.execFile("output.out", { timeout: 10000 }, (err, stdout, stderr) => cb(err, stderr, stdout));
+	catch (error) {
+		console.error(error);
+		return [null, error];
 	}
 }
-
-export default CExecutor;

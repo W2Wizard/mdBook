@@ -1,7 +1,7 @@
 {
 	"port": 4242,
 	"timeout": 5,
-	"tmpDir": "/tmp/executor",
+	"tmpDir": "./tmp",
 	"validOrigins": [
 		"*.42.fr",
 		"*.codam.nl"

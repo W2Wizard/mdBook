@@ -3,50 +3,41 @@
 // See README in the root project for more information.
 // -----------------------------------------------------------------------------
 
-import FileSystem from "fs";
-import { Response } from "express";
-import config from "./config.json";
-import CExecutor from "./modules/module.c";
-import CPPExecutor from "./modules/module.cpp";
-import ExecutionModule from "./modules/module.base";
+import fs from "fs";
 import tmp from "tmp";
+import crypto from "crypto"
+import { Modules } from "./modules/module.base";
+import { ExecuteC } from "./modules/module.c";
 
 /*============================================================================*/
 
 export namespace Execution {
 	/** Map to associate languange with the correct executionModule */
-	export const modules: { [name: string]: typeof ExecutionModule } = {
-		"c": CExecutor,
-		"cpp": CPPExecutor
+	export const modules: { [name: string]: Modules.Function } = {
+		"c": ExecuteC,
 	};
 
 	/**
 	 * Spawns a child process for the given module and executes the code.
 	 * @param module The specified module to run
 	 */
-	export function run(moduleType: typeof ExecutionModule, code: string, flags: string, response: Response) {
-		try {
-			const module = new moduleType(code, flags);
+	export async function run(module: Modules.Function, code: string, flags: string): Promise<{ stdout: string; stderr: string; }> {
+		console.log("Running ...");
+		const instanceID = crypto.randomBytes(5).toString('hex');
 
-			// Create temp file
-			tmp.file({ dir: config.tmpDir, postfix: module.extension }, (err, path) => {
-				// Write code into file
-				FileSystem.writeFile(path, code, (err) => {
-					if (err != null) throw err;
-				});
-
+		return new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
+			tmp.file({ prefix: instanceID, postfix: ".c" }, async (err, path) => {
 				if (err != null) throw err;
-
-				// Execute it.
-				module.execute(path, (err, stderr, stdout) => {
-					if (err) throw new Error(err.message);
-
-					response.status(204).json({ result: stderr != "" ? stderr : stdout, error: null });
-				});
+	
+				// Write source code into tmp file.
+				console.log("Writing to file:", path);
+				fs.writeFileSync(path, code);
+	
+				const [data, error] = await module(path, flags);
+				console.log("Done!", data);
+				if (error) return reject(error);
+				return resolve(data!);
 			});
-		} catch (error) {
-			return response.status(500).json({ result: null, error: error });
-		}
-		return;
+		});
 	}
 }

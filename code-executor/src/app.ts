@@ -3,6 +3,9 @@
 // See README in the root project for more information.
 // -----------------------------------------------------------------------------
 
+// import tmp from "tmp";
+// import Path from "path";
+// import crypto from "crypto"
 import cors from "cors";
 import express from "express";
 import { Request, Response, NextFunction } from "express";
@@ -29,32 +32,41 @@ webserv.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Routes
 /*============================================================================*/
 
-webserv.post('/playground/', (req, res) => {
+webserv.post('/playground/', async (req, res) => {
 	const code = req.body.code;
 	const flags = req.body.flags;
-	const languange = req.body.language;
+	const language = req.body.language;
 
 	// Check request
 	if(!req.is("application/json"))
 		return res.status(400).json({ result: null, error: "Incorrect content type!" });
-	if (code == null || languange == null || flags == null)
+	if (code == null || language == null || flags == null)
 		return res.status(400).json({ result: null, error: "Malformed body" });
+
 	// TODO: Get from config.
+	// TODO: Check from which domain the request came from.
 	if (req.headers.origin && !req.headers.origin.includes("codam.nl"))
 		return res.status(403).json({ result: null, error: "Non-valid origin" });
 
-	// TODO: Check from which domain the request came from.
 	// TODO: Probs add a few more checks here for unwanted requests.
 
 	// Find module
-	const module = Execution.modules[languange];
+	const module = Execution.modules[language];
 	if (module == undefined)
 		return res.status(404).json({ result: null, error: "Unsupported Language!" });
 
-	Execution.run(module, code, flags, res);
+	console.log(`[Playground] [${language}] body:`, code);
 
-	console.log(`[Playground] [${languange}] body:`, code);
-	return res.json({ result: "Request received!\n", error: null });
+	try {
+		const out = await Execution.run(module, code, flags);
+		res.status(201).json({
+			result: out.stderr != "" ? out.stderr : out.stdout,
+			error: null
+		});
+	} catch (error) {
+		res.status(500).json({ result: null, error: error }).end();
+	}
+	return;
 });
 
 
