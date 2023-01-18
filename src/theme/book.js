@@ -237,7 +237,7 @@ function get_playground_text(playground, hidden = true) {
         // TODO: Fetch MD parameters and pass them here
         const params = {
             language: lang,
-            flags: "-Wextra -Werror -Wall",
+            flags: "",
             code: get_playground_text(code_block).trim()
         }
 
@@ -256,7 +256,7 @@ function get_playground_text(playground, hidden = true) {
             return response.json();
         })
         .then(data => {
-            if ("error" in data)
+            if (data.error != null)
                 throw new Error(data.error);
             else if (typeof data.result == "string" && data.result.trim() === '') {
                 result_block.innerText = "No output";

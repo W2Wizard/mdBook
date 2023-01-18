@@ -30,9 +30,9 @@ webserv.use((err: any, req: Request, res: Response, next: NextFunction) => {
 /*============================================================================*/
 
 webserv.post('/playground/', (req, res) => {
-	const code = req.body.code;
-	const flags = req.body.flags;
-	const language = req.body.language;
+	const code = req.body.code as string;
+	const flags = req.body.flags as string;
+	const language = req.body.language as string;
 
 	// Check request
 	if(!req.is("application/json"))
@@ -48,12 +48,13 @@ webserv.post('/playground/', (req, res) => {
 	// TODO: Probs add a few more checks here for unwanted requests.
 
 	// Find module
-	const module = Execution.modules[language];
+	let module = Execution.modules[language];
 	if (module == undefined)
 		return res.status(404).json({ result: null, error: "Unsupported Language!" });
 
-	console.log(`[Playground] Request for lang: ${language} using flags: ${flags}`);
-	return Execution.run(module, code, flags)
+	console.log(`[Playground] Request with: ${language} | Flags: ${flags.length > 0 ? flags : "None"}`);
+
+	return Execution.run(module.executor, code, flags, module.extension)
 	.then((output) => res.status(201).json({ result: output, error: null }))
 	.catch((error) => res.status(422).json({ result: null, error: error.message }));
 });

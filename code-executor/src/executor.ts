@@ -13,17 +13,20 @@ import { ExecuteC } from "./modules/module.c";
 
 export namespace Execution {
 	/** Map to associate languange with the correct executionModule */
-	export const modules: { [name: string]: Modules.Function } = {
-		"cpp": ExecuteC,
+	export const modules: {[name: string]: { executor: Modules.Function, extension: string }} = {
+		"c": {
+			executor: ExecuteC,
+			extension: ".c"
+		},
 	};
 
 	/**
 	 * Spawns a child process for the given module and executes the code.
 	 * @param module The specified module to run
 	 */
-	export async function run(module: Modules.Function, code: string, flags: string): Promise<string> {
+	export async function run(module: Modules.Function, code: string, flags: string, extension: string): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
-			tmp.file({postfix: ".c" }, async (err, path) => {
+			tmp.file({postfix: extension }, async (err, path) => {
 				if (err) return reject(err.message);
 	
 				// Write source code into tmp file.
