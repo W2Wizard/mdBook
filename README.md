@@ -15,6 +15,7 @@ May or may not have some features broken due to mdBook being *VERY* hardcoded wi
 ## Custom playground backend
 
 For a custom playground backend you simply need a webserver with a `POST` route open. Call it whatever you like.
+Checkout our own custom playground to get started: [Here](https://github.com/codam-coding-college/code-playground)
 
 Then in the `.toml` config file of your book set the endpoint:
 ```toml
@@ -26,25 +27,6 @@ line-numbers = true                            # displays line numbers for edita
 runnable = true                                # displays a run button for rust code
 endpoint = "http://localhost:4242/playground/" # send the code to this url for execution
 hidden-str = "#"                               # since different languange use certain chars
-```
-
-A clients incoming request looks as follows:
-```json
-{
-	"lang": "cpp",
-	"code": "..."
-}
-```
-
-[See supported languanges](/guide/src/format/theme/syntax-highlighting.md) for syntax highlighting. As well as the `lang` options for incoming client requests.
-
-
-A servers outgoing response should look as follows:
-```json
-{
-	"result": "Request received!\n",
-	"error": null
-}
 ```
 
 The client will display the appropriate message depending on the server's response.
