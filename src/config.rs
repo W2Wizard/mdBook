@@ -628,6 +628,10 @@ pub struct Playground {
     pub line_numbers: bool,
     /// Display the run button. Default: `true`
     pub runnable: bool,
+    /// Configuration for adding playground support for languages other then rust.
+    /// Default: vec![].
+    /// If there is no configuration for rust specified, the default rust configuration is used.
+    pub languages: Vec<PlaygroundLanguage>,
 }
 
 impl Default for Playground {
@@ -638,6 +642,30 @@ impl Default for Playground {
             copy_js: true,
             line_numbers: false,
             runnable: true,
+            languages: vec![PlaygroundLanguage::default()],
+        }
+    }
+}
+
+/// Configuration for adding playground support for languages other then rust.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct PlaygroundLanguage {
+    /// The language name. Default: "rust".
+    pub language: String,
+    /// Specifies the default hidelines character(s), used to hide lines in codeblocks.
+    /// Default: "#"
+    pub hidelines: String,
+    /// The playground endpoint, this is where the POST request with the code is made. Default: "https://play.rust-lang.org/evaluate.json"
+    pub endpoint: String,
+}
+
+impl Default for PlaygroundLanguage {
+    fn default() -> PlaygroundLanguage {
+        PlaygroundLanguage {
+            language: "rust".to_string(),
+            hidelines: "#".to_string(),
+            endpoint: "https://play.rust-lang.org/evaluate.json".to_string()
         }
     }
 }
@@ -722,7 +750,7 @@ mod tests {
     use crate::utils::fs::get_404_output_file;
     use serde_json::json;
 
-    const COMPLEX_CONFIG: &str = r#"
+    const COMPLEX_CONFIG: &str = r##"
         [book]
         title = "Some Book"
         authors = ["Michael-F-Bryan <michaelfbryan@gmail.com>"]
@@ -749,6 +777,16 @@ mod tests {
         editable = true
         editor = "ace"
 
+        [[output.html.playground.languages]]
+        language = "rust"
+        hidelines = "#"
+        endpoint = "https://play.rust-lang.org/evaluate.json"
+
+        [[output.html.playground.languages]]
+        language = "c"
+        hidelines = "$"
+        endpoint = "https://some-endpoint.com/evaluate"
+
         [output.html.redirect]
         "index.html" = "overview.html"
         "nexted/page.md" = "https://rust-lang.org/"
@@ -756,7 +794,7 @@ mod tests {
         [preprocessor.first]
 
         [preprocessor.second]
-        "#;
+        "##;
 
     #[test]
     fn load_a_complex_config_file() {
@@ -783,6 +821,11 @@ mod tests {
             copy_js: true,
             line_numbers: false,
             runnable: true,
+            languages: vec![PlaygroundLanguage::default(), PlaygroundLanguage {
+                language: String::from("c"),
+                hidelines:String::from("$"),
+                endpoint: String::from("https://some-endpoint.com/evaluate"),
+            }],
         };
         let html_should_be = HtmlConfig {
             curly_quotes: true,
