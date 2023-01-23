@@ -80,7 +80,7 @@ echo '"quoted"' | tr -d \" > text.txt
 
 ## c
 
-```c,editable
+```c
 #include <stdio.h>
 int main(int argc,char ** argv){
     printf("Hello World!");
