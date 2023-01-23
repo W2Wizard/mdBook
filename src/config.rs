@@ -642,7 +642,7 @@ impl Default for Playground {
             copy_js: true,
             line_numbers: false,
             runnable: true,
-            languages: vec![PlaygroundLanguage::default()],
+            languages: vec![],
         }
     }
 }

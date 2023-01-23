@@ -25,20 +25,26 @@ function playground_text(playground, hidden = true) {
         ]);
     }
 
-    var playgrounds = Array.from(document.querySelectorAll(".playground"));
-    if (playgrounds.length > 0) {
-        fetch_with_timeout("https://play.rust-lang.org/meta/crates", {
-            headers: {
-                'Content-Type': "application/json",
+    function init_non_rust_playgrounds(playground_block) {
+        const play_button = playground_block.querySelector(".play-button");
+
+        if (playground_block.querySelector('code').classList.contains("no_run")) {
+            play_button.classList.add("hidden");
+            return;
+        }
+        play_button.classList.remove("hidden");
+        if (!window.ace) { return; }
+
+        const code_block = playground_block.querySelector("code");
+        if (!code_block.classList.contains("editable")) { return; }
+
+        editor.commands.addCommand({
+            name: "run",
+            bindKey: {
+                win: "Ctrl-Enter",
+                mac: "Ctrl-Enter"
             },
-            method: 'POST',
-            mode: 'cors',
-        })
-        .then(response => response.json())
-        .then(response => {
-            // get list of crates available in the rust playground
-            let playground_crates = response.crates.map(item => item["id"]);
-            playgrounds.forEach(block => handle_crate_list_update(block, playground_crates));
+            exec: _editor => run_code(playground_block)
         });
     }
 
@@ -111,9 +117,9 @@ function playground_text(playground, hidden = true) {
         let text = playground_text(code_block);
         let classes = code_block.querySelector('code').classList;
         let edition = "2015";
-        if(classes.contains("edition2018")) {
+        if (classes.contains("edition2018")) {
             edition = "2018";
-        } else if(classes.contains("edition2021")) {
+        } else if (classes.contains("edition2021")) {
             edition = "2021";
         }
         var params = {
@@ -159,17 +165,17 @@ function playground_text(playground, hidden = true) {
     let code_nodes = Array
         .from(document.querySelectorAll('code'))
         // Don't highlight `inline code` blocks in headers.
-        .filter(function (node) {return !node.parentElement.classList.contains("header"); });
+        .filter(function (node) { return !node.parentElement.classList.contains("header"); });
 
     if (window.ace) {
         // language-rust class needs to be removed for editable
         // blocks or highlightjs will capture events
         code_nodes
-            .filter(function (node) {return node.classList.contains("editable"); })
+            .filter(function (node) { return node.classList.contains("editable"); })
             .forEach(function (block) { block.classList.remove('language-rust'); });
 
         code_nodes
-            .filter(function (node) {return !node.classList.contains("editable"); })
+            .filter(function (node) { return !node.classList.contains("editable"); })
             .forEach(function (block) { hljs.highlightBlock(block); });
     } else {
         code_nodes.forEach(function (block) { hljs.highlightBlock(block); });
@@ -179,7 +185,7 @@ function playground_text(playground, hidden = true) {
     // even if highlighting doesn't apply
     code_nodes.forEach(function (block) { block.classList.add('hljs'); });
 
-    Array.from(document.querySelectorAll("code.language-rust")).forEach(function (block) {
+    Array.from(document.querySelectorAll("code")).forEach(function (block) {
 
         var lines = Array.from(block.querySelectorAll('.boring'));
         // If no lines were hidden, return
@@ -253,7 +259,19 @@ function playground_text(playground, hidden = true) {
 
         buttons.insertBefore(runCodeButton, buttons.firstChild);
         runCodeButton.addEventListener('click', function (e) {
-            run_rust_code(pre_block);
+            let lang = "";
+            const classes = pre_block.querySelector('code').classList;
+            for (const value of classes) {
+                if (value.startsWith("language-")) {
+                    lang = value.split("-")[1];
+                    break;
+                }
+            }
+            if (lang === "rust") {
+                run_rust_code(pre_block);
+            } else {
+                run_code(pre_block);
+            }
         });
 
         if (window.playground_copyable) {
@@ -282,6 +300,95 @@ function playground_text(playground, hidden = true) {
             });
         }
     });
+
+    var playgrounds = Array.from(document.querySelectorAll(".playground"));
+    if (playgrounds.length > 0) {
+        // get only rust playgrounds
+        let rust_playgrounds = playgrounds.filter(block => block.querySelector('code').classList.contains("language-rust"));
+        if (rust_playgrounds.length > 0) {
+            fetch_with_timeout("https://play.rust-lang.org/meta/crates", {
+                headers: {
+                    'Content-Type': "application/json",
+                },
+                method: 'POST',
+                mode: 'cors',
+            })
+            .then(response => response.json())
+            .then(response => {
+                // get list of crates available in the rust playground
+                let playground_crates = response.crates.map(item => item["id"]);
+                playgrounds.forEach(block => handle_crate_list_update(block, playground_crates));
+            });
+        }
+        // get all non-rust playgrounds
+        let non_rust_playgrounds = playgrounds.filter(block => !block.querySelector('code').classList.contains("language-rust"));
+        non_rust_playgrounds.forEach(block => init_non_rust_playgrounds(block));
+    }
+
+    /**
+     * 'Executes' the code in the code block by POSTing it to the configured playground.
+     * @param {*} code_block The code block.
+     */
+    function run_code(code_block) {
+        let result_block = code_block.querySelector(".result");
+        if (!result_block) {
+            result_block = document.createElement('code');
+            result_block.className = 'result hljs language-bash';
+            code_block.append(result_block);
+        }
+
+        result_block.innerText = "Running...";
+
+        let lang = "";
+        const classes = code_block.querySelector('code').classList;
+        for (const value of classes) {
+            if (value.startsWith("language-")) {
+                lang = value.split("-")[1];
+                break;
+            }
+        }
+
+        // TODO: Not quite sure what to do here ?
+        if (lang == "") {
+            result_block.innerText = "Not supported!";
+            return;
+        }
+
+        // IF rust, run rust stuffs
+
+        // TODO: Fetch MD parameters and pass them here
+        const params = {
+            language: lang,
+            flags: "",
+            code: playground_text(code_block).trim()
+        }
+
+        const endpoint = code_block.dataset.endpoint;
+
+        fetch_with_timeout(endpoint, {
+            headers: { 'Content-Type': "application/json", "Access-Control-Allow-Origin": "*" },
+            method: 'POST',
+            mode: 'cors',
+            body: JSON.stringify(params)
+        })
+        .then(response => {
+            if (response.status >= 500)
+                throw new Error(response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            if (data.error != null)
+                throw new Error(data.error);
+            else if (typeof data.result == "string" && data.result.trim() === '') {
+                result_block.innerText = "No output";
+                result_block.classList.add("result-no-output");
+            } else {
+                result_block.innerText = data.result;
+                result_block.classList.remove("result-no-output");
+            }
+        })
+        .catch(error => result_block.innerText = "Playground Communication: " + error.message);
+    }
 })();
 
 (function themes() {
@@ -391,7 +498,7 @@ function playground_text(playground, hidden = true) {
         set_theme(theme);
     });
 
-    themePopup.addEventListener('focusout', function(e) {
+    themePopup.addEventListener('focusout', function (e) {
         // e.relatedTarget is null in Safari and Firefox on macOS (see workaround below)
         if (!!e.relatedTarget && !themeToggleButton.contains(e.relatedTarget) && !themePopup.contains(e.relatedTarget)) {
             hideThemes();
@@ -399,7 +506,7 @@ function playground_text(playground, hidden = true) {
     });
 
     // Should not be needed, but it works around an issue on macOS & iOS: https://github.com/rust-lang/mdBook/issues/628
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (themePopup.style.display === 'block' && !themeToggleButton.contains(e.target) && !themePopup.contains(e.target)) {
             hideThemes();
         }
@@ -621,7 +728,7 @@ function playground_text(playground, hidden = true) {
     });
 })();
 
-(function scrollToTop () {
+(function scrollToTop() {
     var menuTitle = document.querySelector('.menu-title');
 
     menuTitle.addEventListener('click', function () {

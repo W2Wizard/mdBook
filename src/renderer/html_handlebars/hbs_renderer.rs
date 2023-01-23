@@ -1,5 +1,5 @@
 use crate::book::{Book, BookItem};
-use crate::config::{BookConfig, Config, HtmlConfig, Playground, RustEdition};
+use crate::config::{BookConfig, Config, HtmlConfig, Playground, PlaygroundLanguage, RustEdition};
 use crate::errors::*;
 use crate::renderer::html_handlebars::helpers;
 use crate::renderer::{RenderContext, Renderer};
@@ -16,7 +16,7 @@ use crate::utils::fs::get_404_output_file;
 use handlebars::Handlebars;
 use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
-use regex::{Captures, Regex};
+use regex::{escape, Captures, Regex};
 use serde_json::json;
 
 #[derive(Default)]
@@ -830,6 +830,13 @@ fn fix_code_blocks(html: &str) -> String {
         .into_owned()
 }
 
+struct PlaygroundConfig {
+    language: Option<String>,
+    runnable: bool,
+    editable: bool,
+    rust_edition: String,
+}
+
 fn add_playground_pre(
     html: &str,
     playground_config: &Playground,
@@ -844,33 +851,43 @@ fn add_playground_pre(
             let classes = &caps[2];
             let code = &caps[3];
 
-            if classes.contains("language-rust") {
-                if (!classes.contains("ignore")
+            let mut playground_languages: HashMap<String, PlaygroundLanguage> = playground_config.languages.iter().map(|lang| (lang.language.to_owned(), lang.to_owned())).collect();
+
+            let contains_rust = playground_languages.get("rust").is_some();
+            if !contains_rust {
+                playground_languages.insert(String::from("rust"), PlaygroundLanguage::default());
+            }
+
+            let language = classes.split_ascii_whitespace().find_map(|class| if class.contains("language-") { match class.get(9..) {
+                Some(l) => Some(l.to_string()),
+                None => None,
+            }} else { None });
+            let playground_config = PlaygroundConfig {
+                language,
+                runnable: (!classes.contains("ignore")
                     && !classes.contains("noplayground")
                     && !classes.contains("noplaypen")
                     && playground_config.runnable)
-                    || classes.contains("mdbook-runnable")
-                {
-                    let contains_e2015 = classes.contains("edition2015");
-                    let contains_e2018 = classes.contains("edition2018");
-                    let contains_e2021 = classes.contains("edition2021");
-                    let edition_class = if contains_e2015 || contains_e2018 || contains_e2021 {
-                        // the user forced edition, we should not overwrite it
-                        ""
-                    } else {
-                        match edition {
-                            Some(RustEdition::E2015) => " edition2015",
-                            Some(RustEdition::E2018) => " edition2018",
-                            Some(RustEdition::E2021) => " edition2021",
-                            None => "",
-                        }
-                    };
-
+                    || classes.contains("mdbook-runnable"),
+                editable: classes.contains("editable"),
+                rust_edition: if classes.contains("edition2015") || classes.contains("edition2018") || classes.contains("edition2021") { String::from("") } else {
+                    match edition {
+                        Some(RustEdition::E2015) => String::from("edition2015"),
+                        Some(RustEdition::E2018) => String::from("edition2018"),
+                        Some(RustEdition::E2021) => String::from("edition2021"),
+                        None => String::from(""),
+                    }
+                },
+            };
+            let rust_lang = playground_languages.get("rust").unwrap();
+            if playground_config.language == Some(String::from("rust")) {
+                if playground_config.runnable {
                     // wrap the contents in an external pre block
                     format!(
-                        "<pre class=\"playground\"><code class=\"{}{}\">{}</code></pre>",
+                        "<pre class=\"playground\"><code class=\"{}{}{}\">{}</code></pre>",
                         classes,
-                        edition_class,
+                        if playground_config.rust_edition != "" { " " } else { "" },
+                        playground_config.rust_edition,
                         {
                             let content: Cow<'_, str> = if playground_config.editable
                                 && classes.contains("editable")
@@ -885,11 +902,35 @@ fn add_playground_pre(
                                 format!("# #![allow(unused)]\n{}#fn main() {{\n{}#}}", attrs, code)
                                     .into()
                             };
-                            hide_lines(&content)
+                            hide_lines(&content, &rust_lang.hidelines)
                         }
                     )
                 } else {
-                    format!("<code class=\"{}\">{}</code>", classes, hide_lines(code))
+                    format!("<code class=\"{}\">{}</code>", classes, hide_lines(code, &rust_lang.hidelines))
+                }
+            } else if playground_config.language.is_some() {
+                if playground_config.runnable {
+                    let language = playground_config.language.unwrap();
+                    let play_lang = playground_languages.get(&language);
+                    match play_lang {
+                        Some(play_lang) => {
+                            format!(
+                                "<pre data-endpoint={} class=\"playground\"><code class=\"{}\">{}</code></pre>",
+                                play_lang.endpoint,
+                                classes,
+                                {
+                                    let content: Cow<'_, str> = code.into();
+                                    hide_lines(&content, &play_lang.hidelines)
+                                }
+                            )
+                        },
+                        None => {
+                            format!("<code class=\"{}\">{}</code>", classes, hide_lines(code, &rust_lang.hidelines))
+                        }
+                    }
+
+                } else {
+                    format!("<code class=\"{}\">{}</code>", classes, hide_lines(code, &rust_lang.hidelines))
                 }
             } else {
                 // not language-rust, so no-op
@@ -899,16 +940,17 @@ fn add_playground_pre(
         .into_owned()
 }
 
-fn hide_lines(content: &str) -> String {
-    static BORING_LINES_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\s*)#(.?)(.*)$").unwrap());
+fn hide_lines(content: &str, hidden: &str) -> String {
+    let hidden_regex = format!(r"^(\s*){}(.?)(.*)$", escape(hidden));
+    let boring_lines_regex: Regex = Regex::new(&hidden_regex).unwrap();
 
     let mut result = String::with_capacity(content.len());
     let mut lines = content.lines().peekable();
     while let Some(line) = lines.next() {
         // Don't include newline on the last line.
         let newline = if lines.peek().is_none() { "" } else { "\n" };
-        if let Some(caps) = BORING_LINES_REGEX.captures(line) {
-            if &caps[2] == "#" {
+        if let Some(caps) = boring_lines_regex.captures(line) {
+            if &caps[2] == hidden {
                 result += &caps[1];
                 result += &caps[2];
                 result += &caps[3];

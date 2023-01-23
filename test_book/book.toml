@@ -14,6 +14,11 @@ mathjax-support = true
 editable = true
 line-numbers = true
 
+[[output.html.playground.languages]]
+language = "c"
+hidelines = "$"
+endpoint = "http://localhost:4242/playground"
+
 [output.html.search]
 limit-results = 20
 use-boolean-and = true
