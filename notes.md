@@ -14,3 +14,8 @@ Relevant Issues:
 
 Potential:
 - [Disabling the expansion of hidden lines in code snippets #767](https://github.com/rust-lang/mdBook/issues/767)
+
+
+To fix:
+- Code file inclusion   {{#include file.rs}}
+- mdbook test -> runs rust code samples, maybe can run others as well?

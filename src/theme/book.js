@@ -38,6 +38,8 @@ function playground_text(playground, hidden = true) {
         const code_block = playground_block.querySelector("code");
         if (!code_block.classList.contains("editable")) { return; }
 
+        let editor = window.ace.edit(code_block);
+
         editor.commands.addCommand({
             name: "run",
             bindKey: {
@@ -168,12 +170,6 @@ function playground_text(playground, hidden = true) {
         .filter(function (node) { return !node.parentElement.classList.contains("header"); });
 
     if (window.ace) {
-        // language-rust class needs to be removed for editable
-        // blocks or highlightjs will capture events
-        code_nodes
-            .filter(function (node) { return node.classList.contains("editable"); })
-            .forEach(function (block) { block.classList.remove('language-rust'); });
-
         code_nodes
             .filter(function (node) { return !node.classList.contains("editable"); })
             .forEach(function (block) { hljs.highlightBlock(block); });
