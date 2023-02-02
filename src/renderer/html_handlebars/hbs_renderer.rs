@@ -300,8 +300,18 @@ impl HtmlHandlebars {
             write_file(destination, "mode-rust.js", playground_editor::MODE_RUST_JS)?;
             write_file(
                 destination,
+                "mode-c_cpp.js",
+                playground_editor::MODE_C_CPP_JS,
+            )?;
+            write_file(
+                destination,
                 "theme-dawn.js",
                 playground_editor::THEME_DAWN_JS,
+            )?;
+            write_file(
+                destination,
+                "theme-monokai.js",
+                playground_editor::THEME_MONOKAI_JS,
             )?;
             write_file(
                 destination,

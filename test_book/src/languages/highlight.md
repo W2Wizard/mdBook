@@ -80,7 +80,7 @@ echo '"quoted"' | tr -d \" > text.txt
 
 ## c
 
-```c
+```c,editable
 #include <stdio.h>
 int main(int argc,char ** argv){
     printf("Hello World!");
@@ -228,7 +228,7 @@ func main() {
 
 ## haskell
 
-```haskell
+```haskell,editable
 main :: IO ()
 main = putStrLn "Hello World!"
 
@@ -656,8 +656,50 @@ g.salute
 ## rust
 
 ```rust
-fn main()->(){
-    println!("Hello World!");
+#[derive(Debug)]
+pub enum State {
+    Start,
+    Transient,
+    Closed,
+}
+
+impl From<&'a str> for State {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "start" => State::Start,
+            "closed" => State::Closed,
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn main() -> () {
+  let state = State::from("start");
+}
+```
+
+## rust
+
+```rust,editable
+#[derive(Debug)]
+pub enum State {
+    Start,
+    Transient,
+    Closed,
+}
+
+impl From<&'a str> for State {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "start" => State::Start,
+            "closed" => State::Closed,
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn main() -> () {
+  let state = State::from("start");
 }
 ```
 

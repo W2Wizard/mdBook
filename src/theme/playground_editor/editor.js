@@ -18,9 +18,43 @@ window.editors = [];
             fontSize: "0.875em" // please adjust the font size of the code in general.css
         });
 
+        let lang = "";
+        const classes = editable.classList;
+        for (const value of classes) {
+            if (value.startsWith("language-")) {
+                lang = value.split("-")[1];
+                break;
+            }
+        }
+
+        const languageModes = {
+            "rust": "ace/mode/rust",
+            "c": "ace/mode/c_cpp",
+            "cpp": "ace/mode/c_cpp",
+            "bash": "ace/mode/sh",
+            "sh": "ace/mode/sh",
+            "shell": "ace/mode/sh",
+            "zsh": "ace/mode/sh",
+            "python": "ace/mode/python",
+            "py": "ace/mode/python",
+            "js": "ace/mode/javascript",
+            "javascript": "ace/mode/javascript",
+            "json": "ace/mode/json",
+            "html": "ace/mode/html",
+            "xml": "ace/mode/xml",
+            "css": "ace/mode/css",
+            "toml": "ace/mode/toml",
+            "yaml": "ace/mode/yaml",
+            "csharp": "ace/mode/csharp",
+            "go": "ace/mode/golang",
+            "java": "ace/mode/java",
+            "haskell": "ace/mode/haskell",
+            "kotlin": "ace/mode/kotlin",
+        }
+
         editor.$blockScrolling = Infinity;
 
-        editor.getSession().setMode("ace/mode/rust");
+        editor.getSession().setMode(languageModes[lang] || "ace/mode/rust");
 
         editor.originalCode = editor.getValue();
 

@@ -448,6 +448,11 @@ function playground_text(playground, hidden = true) {
             ace_theme = "ace/theme/dawn";
         }
 
+        stylesheets.ayuHighlight.disabled = true;
+        stylesheets.tomorrowNight.disabled = false;
+        stylesheets.highlight.disabled = true;
+        ace_theme = "ace/theme/tomorrow_night";
+
         setTimeout(function () {
             themeColorMetaTag.content = getComputedStyle(document.body).backgroundColor;
         }, 1);

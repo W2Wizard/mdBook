@@ -16,3 +16,5 @@ test_book/book/
 # Ignore Vim temporary and swap files.
 *.sw?
 *~
+
+test_book/src/ace

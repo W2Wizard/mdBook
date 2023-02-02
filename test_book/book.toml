@@ -13,6 +13,8 @@ mathjax-support = true
 [output.html.playground]
 editable = true
 line-numbers = true
+copyable = true
+editor = "ace"
 
 [[output.html.playground.languages]]
 language = "c"
