@@ -194,6 +194,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "codam-mdbook"
+version = "0.4.25"
+dependencies = [
+ "ammonia",
+ "anyhow",
+ "assert_cmd",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "elasticlunr-rs",
+ "env_logger",
+ "futures-util",
+ "gitignore",
+ "handlebars",
+ "log",
+ "memchr",
+ "notify",
+ "notify-debouncer-mini",
+ "once_cell",
+ "opener",
+ "predicates",
+ "pretty_assertions",
+ "pulldown-cmark",
+ "regex",
+ "select",
+ "semver",
+ "serde",
+ "serde_json",
+ "shlex",
+ "tempfile",
+ "tokio",
+ "toml",
+ "topological-sort",
+ "walkdir",
+ "warp",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -916,44 +954,6 @@ dependencies = [
  "markup5ever",
  "tendril",
  "xml5ever",
-]
-
-[[package]]
-name = "mdbook"
-version = "0.4.25"
-dependencies = [
- "ammonia",
- "anyhow",
- "assert_cmd",
- "chrono",
- "clap",
- "clap_complete",
- "elasticlunr-rs",
- "env_logger",
- "futures-util",
- "gitignore",
- "handlebars",
- "log",
- "memchr",
- "notify",
- "notify-debouncer-mini",
- "once_cell",
- "opener",
- "predicates",
- "pretty_assertions",
- "pulldown-cmark",
- "regex",
- "select",
- "semver",
- "serde",
- "serde_json",
- "shlex",
- "tempfile",
- "tokio",
- "toml",
- "topological-sort",
- "walkdir",
- "warp",
 ]
 
 [[package]]

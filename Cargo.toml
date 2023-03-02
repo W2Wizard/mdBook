@@ -1,10 +1,11 @@
 [package]
-name = "mdbook"
+name = "codam-mdbook"
 version = "0.4.25"
 authors = [
     "Mathieu David <mathieudavid@mathieudavid.org>",
     "Michael-F-Bryan <michaelfbryan@gmail.com>",
-    "Matt Ickstadt <mattico8@gmail.com>"
+    "Matt Ickstadt <mattico8@gmail.com>",
+    "Oscar Mulder <oscar.mulder@codam.nl>"
 ]
 documentation = "https://rust-lang.github.io/mdBook/index.html"
 edition = "2021"
@@ -12,9 +13,12 @@ exclude = ["/guide/*"]
 keywords = ["book", "gitbook", "rustbook", "markdown"]
 license = "MPL-2.0"
 readme = "README.md"
-repository = "https://github.com/rust-lang/mdBook"
+repository = "https://github.com/codam-coding-college/mdBook-multi-runner"
 description = "Creates a book from markdown files"
 rust-version = "1.60"
+
+[lib]
+name = "mdbook"
 
 [dependencies]
 anyhow = "1.0.28"
@@ -66,7 +70,8 @@ search = ["elasticlunr-rs", "ammonia"]
 
 [[bin]]
 doc = false
-name = "mdbook"
+name = "codam-mdbook"
+path = "src/main.rs"
 
 [[example]]
 name = "nop-preprocessor"
