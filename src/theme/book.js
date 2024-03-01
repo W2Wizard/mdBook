@@ -3,151 +3,43 @@
 // Fix back button cache problem
 window.onunload = function () { };
 
-// Global variable, shared between modules
-function playground_text(playground, hidden = true) {
+/*===========================================================================*/
+
+/**
+ * Retrieves the playground text.
+ * Global variable, shared between modules.
+ * @param {*} playground The playground itself.
+ * @param {boolean} hidden Is the playground hidden.
+ * @returns The code within the playground.
+ */
+function get_playground_text(playground, hidden = true) {
     let code_block = playground.querySelector("code");
 
-    if (window.ace && code_block.classList.contains("editable")) {
-        let editor = window.ace.edit(code_block);
-        return editor.getValue();
-    } else if (hidden) {
+    if (window.ace && code_block.classList.contains("editable"))
+        return window.ace.edit(code_block).getValue();
+    else if (hidden)
         return code_block.textContent;
-    } else {
+    else
         return code_block.innerText;
-    }
 }
 
+/*===========================================================================*/
+
+/** Configure the code snippets. */
 (function codeSnippets() {
+
+    /**
+     * Fetch wrapper that uses a timeout to avoid indefinite or stuck requests.
+     * @param {string} url The URL to make the requst to.
+     * @param {*} options The fetch options.
+     * @param {number} timeout The amount of ms until timeout.
+     * @returns 
+     */
     function fetch_with_timeout(url, options, timeout = 6000) {
         return Promise.race([
             fetch(url, options),
             new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))
         ]);
-    }
-
-    var playgrounds = Array.from(document.querySelectorAll(".playground"));
-    if (playgrounds.length > 0) {
-        fetch_with_timeout("https://play.rust-lang.org/meta/crates", {
-            headers: {
-                'Content-Type': "application/json",
-            },
-            method: 'POST',
-            mode: 'cors',
-        })
-        .then(response => response.json())
-        .then(response => {
-            // get list of crates available in the rust playground
-            let playground_crates = response.crates.map(item => item["id"]);
-            playgrounds.forEach(block => handle_crate_list_update(block, playground_crates));
-        });
-    }
-
-    function handle_crate_list_update(playground_block, playground_crates) {
-        // update the play buttons after receiving the response
-        update_play_button(playground_block, playground_crates);
-
-        // and install on change listener to dynamically update ACE editors
-        if (window.ace) {
-            let code_block = playground_block.querySelector("code");
-            if (code_block.classList.contains("editable")) {
-                let editor = window.ace.edit(code_block);
-                editor.addEventListener("change", function (e) {
-                    update_play_button(playground_block, playground_crates);
-                });
-                // add Ctrl-Enter command to execute rust code
-                editor.commands.addCommand({
-                    name: "run",
-                    bindKey: {
-                        win: "Ctrl-Enter",
-                        mac: "Ctrl-Enter"
-                    },
-                    exec: _editor => run_rust_code(playground_block)
-                });
-            }
-        }
-    }
-
-    // updates the visibility of play button based on `no_run` class and
-    // used crates vs ones available on http://play.rust-lang.org
-    function update_play_button(pre_block, playground_crates) {
-        var play_button = pre_block.querySelector(".play-button");
-
-        // skip if code is `no_run`
-        if (pre_block.querySelector('code').classList.contains("no_run")) {
-            play_button.classList.add("hidden");
-            return;
-        }
-
-        // get list of `extern crate`'s from snippet
-        var txt = playground_text(pre_block);
-        var re = /extern\s+crate\s+([a-zA-Z_0-9]+)\s*;/g;
-        var snippet_crates = [];
-        var item;
-        while (item = re.exec(txt)) {
-            snippet_crates.push(item[1]);
-        }
-
-        // check if all used crates are available on play.rust-lang.org
-        var all_available = snippet_crates.every(function (elem) {
-            return playground_crates.indexOf(elem) > -1;
-        });
-
-        if (all_available) {
-            play_button.classList.remove("hidden");
-        } else {
-            play_button.classList.add("hidden");
-        }
-    }
-
-    function run_rust_code(code_block) {
-        var result_block = code_block.querySelector(".result");
-        if (!result_block) {
-            result_block = document.createElement('code');
-            result_block.className = 'result hljs language-bash';
-
-            code_block.append(result_block);
-        }
-
-        let text = playground_text(code_block);
-        let classes = code_block.querySelector('code').classList;
-        let edition = "2015";
-        if(classes.contains("edition2018")) {
-            edition = "2018";
-        } else if(classes.contains("edition2021")) {
-            edition = "2021";
-        }
-        var params = {
-            version: "stable",
-            optimize: "0",
-            code: text,
-            edition: edition
-        };
-
-        if (text.indexOf("#![feature") !== -1) {
-            params.version = "nightly";
-        }
-
-        result_block.innerText = "Running...";
-
-        fetch_with_timeout("https://play.rust-lang.org/evaluate.json", {
-            headers: {
-                'Content-Type': "application/json",
-            },
-            method: 'POST',
-            mode: 'cors',
-            body: JSON.stringify(params)
-        })
-        .then(response => response.json())
-        .then(response => {
-            if (response.result.trim() === '') {
-                result_block.innerText = "No output";
-                result_block.classList.add("result-no-output");
-            } else {
-                result_block.innerText = response.result;
-                result_block.classList.remove("result-no-output");
-            }
-        })
-        .catch(error => result_block.innerText = "Playground Communication: " + error.message);
     }
 
     // Syntax highlighting Configuration
@@ -156,32 +48,31 @@ function playground_text(playground, hidden = true) {
         languages: [],      // Languages used for auto-detection
     });
 
-    let code_nodes = Array
-        .from(document.querySelectorAll('code'))
-        // Don't highlight `inline code` blocks in headers.
-        .filter(function (node) {return !node.parentElement.classList.contains("header"); });
+    // Don't highlight `inline code` blocks in headers.
+    const code_nodes = Array.from(document.querySelectorAll('code')).filter((node) => {
+        return !node.parentElement.classList.contains("header");
+    });
 
+    // Languange class needs to be removed for editable or highlightjs will capture events.
     if (window.ace) {
-        // language-rust class needs to be removed for editable
-        // blocks or highlightjs will capture events
         code_nodes
-            .filter(function (node) {return node.classList.contains("editable"); })
-            .forEach(function (block) { block.classList.remove('language-rust'); });
+        .filter((node) => node.classList.contains("editable"))
+        .forEach((block) => block.classList.remove("languange-rust"));
 
         code_nodes
-            .filter(function (node) {return !node.classList.contains("editable"); })
-            .forEach(function (block) { hljs.highlightBlock(block); });
-    } else {
+        .filter((node) => !node.classList.contains("editable"))
+        .forEach((block) => hljs.highlightBlock(block));
+    }
+    else {
         code_nodes.forEach(function (block) { hljs.highlightBlock(block); });
     }
 
-    // Adding the hljs class gives code blocks the color css
-    // even if highlighting doesn't apply
+    // Adding the hljs class gives code blocks the color css even if highlighting doesn't apply
     code_nodes.forEach(function (block) { block.classList.add('hljs'); });
 
-    Array.from(document.querySelectorAll("code.language-rust")).forEach(function (block) {
+    Array.from(document.querySelectorAll("code")).forEach((block) => {
+        const lines = Array.from(block.querySelectorAll('.boring'));
 
-        var lines = Array.from(block.querySelectorAll('.boring'));
         // If no lines were hidden, return
         if (!lines.length) { return; }
         block.classList.add("hide-boring");
@@ -215,16 +106,16 @@ function playground_text(playground, hidden = true) {
 
     if (window.playground_copyable) {
         Array.from(document.querySelectorAll('pre code')).forEach(function (block) {
-            var pre_block = block.parentNode;
+            let pre_block = block.parentNode;
             if (!pre_block.classList.contains('playground')) {
-                var buttons = pre_block.querySelector(".buttons");
+                let buttons = pre_block.querySelector(".buttons");
                 if (!buttons) {
                     buttons = document.createElement('div');
                     buttons.className = 'buttons';
                     pre_block.insertBefore(buttons, pre_block.firstChild);
                 }
 
-                var clipButton = document.createElement('button');
+                let clipButton = document.createElement('button');
                 clipButton.className = 'fa fa-copy clip-button';
                 clipButton.title = 'Copy to clipboard';
                 clipButton.setAttribute('aria-label', clipButton.title);
@@ -238,58 +129,155 @@ function playground_text(playground, hidden = true) {
     // Process playground code blocks
     Array.from(document.querySelectorAll(".playground")).forEach(function (pre_block) {
         // Add play button
-        var buttons = pre_block.querySelector(".buttons");
+        let buttons = pre_block.querySelector(".buttons");
         if (!buttons) {
             buttons = document.createElement('div');
             buttons.className = 'buttons';
             pre_block.insertBefore(buttons, pre_block.firstChild);
         }
 
-        var runCodeButton = document.createElement('button');
+        let runCodeButton = document.createElement('button');
         runCodeButton.className = 'fa fa-play play-button';
         runCodeButton.hidden = true;
         runCodeButton.title = 'Run this code';
         runCodeButton.setAttribute('aria-label', runCodeButton.title);
-
+        runCodeButton.addEventListener('click', (e) => run_code(pre_block));
         buttons.insertBefore(runCodeButton, buttons.firstChild);
-        runCodeButton.addEventListener('click', function (e) {
-            run_rust_code(pre_block);
-        });
 
         if (window.playground_copyable) {
-            var copyCodeClipboardButton = document.createElement('button');
+            let copyCodeClipboardButton = document.createElement('button');
             copyCodeClipboardButton.className = 'fa fa-copy clip-button';
             copyCodeClipboardButton.innerHTML = '<i class="tooltiptext"></i>';
             copyCodeClipboardButton.title = 'Copy to clipboard';
             copyCodeClipboardButton.setAttribute('aria-label', copyCodeClipboardButton.title);
-
             buttons.insertBefore(copyCodeClipboardButton, buttons.firstChild);
         }
 
         let code_block = pre_block.querySelector("code");
-        if (window.ace && code_block.classList.contains("editable")) {
-            var undoChangesButton = document.createElement('button');
-            undoChangesButton.className = 'fa fa-history reset-button';
-            undoChangesButton.title = 'Undo changes';
-            undoChangesButton.setAttribute('aria-label', undoChangesButton.title);
+        if (!(window.ace && code_block.classList.contains("editable")))
+            return;
 
-            buttons.insertBefore(undoChangesButton, buttons.firstChild);
+        let undoChangesButton = document.createElement('button');
+        undoChangesButton.className = 'fa fa-history reset-button';
+        undoChangesButton.title = 'Undo changes';
+        undoChangesButton.setAttribute('aria-label', undoChangesButton.title);
+        undoChangesButton.addEventListener('click', () => {
+            let editor = window.ace.edit(code_block);
 
-            undoChangesButton.addEventListener('click', function () {
-                let editor = window.ace.edit(code_block);
-                editor.setValue(editor.originalCode);
-                editor.clearSelection();
-            });
-        }
+            editor.setValue(editor.originalCode);
+            editor.clearSelection();
+        });
+
+        buttons.insertBefore(undoChangesButton, buttons.firstChild);
     });
+
+    /**
+     * Updates the visibility of play button based on `no_run`
+     * TODO: For rust: Toggle visiblity based on if the crates are available.
+     * @param {*} pre_block The playground block.
+     */
+     function update_play(pre_block) {
+        const play_button = pre_block.querySelector(".play-button");
+
+        if (pre_block.querySelector('code').classList.contains("no_run")) {
+            play_button.classList.add("hidden");
+            return;
+        }
+        play_button.classList.remove("hidden");
+    }
+
+    // Construct the playgrounds appropriately.
+    const playgrounds = Array.from(document.querySelectorAll(".playground"));
+    playgrounds.forEach(playground_block => {
+        update_play(playground_block);
+        if (!window.ace) { return; }
+
+        const code_block = playground_block.querySelector("code");
+        if (!code_block.classList.contains("editable")) { return; }
+
+        editor.commands.addCommand({
+            name: "run",
+            bindKey: {
+                win: "Ctrl-Enter",
+                mac: "Ctrl-Enter"
+            },
+            exec: _editor => run_code(playground_block)
+        });
+    });
+
+    /**
+     * 'Executes' the code in the code block by POSTing it to the configured playground.
+     * @param {*} code_block The code block.
+     */
+     function run_code(code_block) {
+        let result_block = code_block.querySelector(".result");
+        if (!result_block) {
+            result_block = document.createElement('code');
+            result_block.className = 'result hljs language-bash';
+            code_block.append(result_block);
+        }
+
+        result_block.innerText = "Running...";
+
+        let lang = "";
+        const classes = code_block.querySelector('code').classList;
+        for (const value of classes) {
+            if (value.startsWith("language-")) {
+                lang = value.split("-")[1];
+                break;
+            }
+        }
+
+        // TODO: Not quite sure what to do here ?
+        if (lang == "") {
+            result_block.innerText = "Not supported!";
+            return;
+        }
+
+        // TODO: Fetch MD parameters and pass them here
+        const params = {
+            language: lang,
+            flags: "",
+            code: get_playground_text(code_block).trim()
+        }
+
+        const endpoint = code_block.dataset.endpoint;
+        console.log("Sending code to:", endpoint);
+        
+        fetch_with_timeout(endpoint, {
+            headers: { 'Content-Type': "application/json" },
+            method: 'POST',
+            mode: 'cors',
+            body: JSON.stringify(params)
+        })
+        .then(response => {
+            if (response.status >= 500)
+                throw new Error(response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            if (data.error != null)
+                throw new Error(data.error);
+            else if (typeof data.result == "string" && data.result.trim() === '') {
+                result_block.innerText = "No output";
+                result_block.classList.add("result-no-output");
+            } else {
+                result_block.innerText = data.result;
+                result_block.classList.remove("result-no-output");
+            }
+        })
+        .catch(error => result_block.innerText = "Playground Communication: " + error.message);
+    }
 })();
 
+/*===========================================================================*/
+
 (function themes() {
-    var html = document.querySelector('html');
-    var themeToggleButton = document.getElementById('theme-toggle');
-    var themePopup = document.getElementById('theme-list');
-    var themeColorMetaTag = document.querySelector('meta[name="theme-color"]');
-    var stylesheets = {
+    let html = document.querySelector('html');
+    let themeToggleButton = document.getElementById('theme-toggle');
+    let themePopup = document.getElementById('theme-list');
+    let themeColorMetaTag = document.querySelector('meta[name="theme-color"]');
+    let stylesheets = {
         ayuHighlight: document.querySelector("[href$='ayu-highlight.css']"),
         tomorrowNight: document.querySelector("[href$='tomorrow-night.css']"),
         highlight: document.querySelector("[href$='highlight.css']"),
@@ -315,7 +303,7 @@ function playground_text(playground, hidden = true) {
     }
 
     function get_theme() {
-        var theme;
+        let theme;
         try { theme = localStorage.getItem('mdbook-theme'); } catch (e) { }
         if (theme === null || theme === undefined) {
             return default_theme;
@@ -355,7 +343,7 @@ function playground_text(playground, hidden = true) {
             });
         }
 
-        var previousTheme = get_theme();
+        let previousTheme = get_theme();
 
         if (store) {
             try { localStorage.setItem('mdbook-theme', theme); } catch (e) { }
@@ -367,7 +355,7 @@ function playground_text(playground, hidden = true) {
     }
 
     // Set theme
-    var theme = get_theme();
+    let theme = get_theme();
 
     set_theme(theme, false);
 
@@ -380,7 +368,7 @@ function playground_text(playground, hidden = true) {
     });
 
     themePopup.addEventListener('click', function (e) {
-        var theme;
+        let theme;
         if (e.target.className === "theme") {
             theme = e.target.id;
         } else if (e.target.parentElement.className === "theme") {
@@ -440,13 +428,15 @@ function playground_text(playground, hidden = true) {
     });
 })();
 
+/*===========================================================================*/
+
 (function sidebar() {
-    var html = document.querySelector("html");
-    var sidebar = document.getElementById("sidebar");
-    var sidebarLinks = document.querySelectorAll('#sidebar a');
-    var sidebarToggleButton = document.getElementById("sidebar-toggle");
-    var sidebarResizeHandle = document.getElementById("sidebar-resize-handle");
-    var firstContact = null;
+    let html = document.querySelector("html");
+    let sidebar = document.getElementById("sidebar");
+    let sidebarLinks = document.querySelectorAll('#sidebar a');
+    let sidebarToggleButton = document.getElementById("sidebar-toggle");
+    let sidebarResizeHandle = document.getElementById("sidebar-resize-handle");
+    let firstContact = null;
 
     function showSidebar() {
         html.classList.remove('sidebar-hidden')
@@ -460,22 +450,20 @@ function playground_text(playground, hidden = true) {
     }
 
 
-    var sidebarAnchorToggles = document.querySelectorAll('#sidebar a.toggle');
+    let sidebarAnchorToggles = document.querySelectorAll('#sidebar a.toggle');
 
     function toggleSection(ev) {
         ev.currentTarget.parentElement.classList.toggle('expanded');
     }
 
-    Array.from(sidebarAnchorToggles).forEach(function (el) {
-        el.addEventListener('click', toggleSection);
-    });
+    Array.from(sidebarAnchorToggles).forEach((el) => el.addEventListener('click', toggleSection));
 
     function hideSidebar() {
         html.classList.remove('sidebar-visible')
         html.classList.add('sidebar-hidden');
-        Array.from(sidebarLinks).forEach(function (link) {
-            link.setAttribute('tabIndex', -1);
-        });
+
+        Array.from(sidebarLinks).forEach((link) => link.setAttribute('tabIndex', -1));
+
         sidebarToggleButton.setAttribute('aria-expanded', false);
         sidebar.setAttribute('aria-hidden', true);
         try { localStorage.setItem('mdbook-sidebar', 'hidden'); } catch (e) { }
@@ -484,7 +472,7 @@ function playground_text(playground, hidden = true) {
     // Toggle sidebar
     sidebarToggleButton.addEventListener('click', function sidebarToggle() {
         if (html.classList.contains("sidebar-hidden")) {
-            var current_width = parseInt(
+            let current_width = parseInt(
                 document.documentElement.style.getPropertyValue('--sidebar-width'), 10);
             if (current_width < 150) {
                 document.documentElement.style.setProperty('--sidebar-width', '150px');
@@ -509,7 +497,7 @@ function playground_text(playground, hidden = true) {
         html.classList.add('sidebar-resizing');
     }
     function resize(e) {
-        var pos = (e.clientX - sidebar.offsetLeft);
+        let pos = (e.clientX - sidebar.offsetLeft);
         if (pos < 20) {
             hideSidebar();
         } else {
@@ -527,19 +515,19 @@ function playground_text(playground, hidden = true) {
         window.removeEventListener('mouseup', stopResize, false);
     }
 
-    document.addEventListener('touchstart', function (e) {
+    document.addEventListener('touchstart', (e) => {
         firstContact = {
             x: e.touches[0].clientX,
             time: Date.now()
         };
     }, { passive: true });
 
-    document.addEventListener('touchmove', function (e) {
+    document.addEventListener('touchmove', (e) => {
         if (!firstContact)
             return;
 
-        var curX = e.touches[0].clientX;
-        var xDiff = curX - firstContact.x,
+        let curX = e.touches[0].clientX;
+        let xDiff = curX - firstContact.x,
             tDiff = Date.now() - firstContact.time;
 
         if (tDiff < 250 && Math.abs(xDiff) >= 150) {
@@ -553,39 +541,43 @@ function playground_text(playground, hidden = true) {
     }, { passive: true });
 
     // Scroll sidebar to current active section
-    var activeSection = document.getElementById("sidebar").querySelector(".active");
+    let activeSection = document.getElementById("sidebar").querySelector(".active");
     if (activeSection) {
         // https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView
         activeSection.scrollIntoView({ block: 'center' });
     }
 })();
 
+/*===========================================================================*/
+
 (function chapterNavigation() {
-    document.addEventListener('keydown', function (e) {
-        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) { return; }
-        if (window.search && window.search.hasFocus()) { return; }
+    document.addEventListener('keydown', (e) => {
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (window.search && window.search.hasFocus()) return;
 
         switch (e.key) {
             case 'ArrowRight':
                 e.preventDefault();
-                var nextButton = document.querySelector('.nav-chapters.next');
-                if (nextButton) {
+                let nextButton = document.querySelector('.nav-chapters.next');
+                if (nextButton)
                     window.location.href = nextButton.href;
-                }
                 break;
+
             case 'ArrowLeft':
                 e.preventDefault();
-                var previousButton = document.querySelector('.nav-chapters.previous');
-                if (previousButton) {
+                let previousButton = document.querySelector('.nav-chapters.previous');
+                if (previousButton)
                     window.location.href = previousButton.href;
-                }
                 break;
         }
     });
+
 })();
 
+/*===========================================================================*/
+
 (function clipboard() {
-    var clipButtons = document.querySelectorAll('.clip-button');
+    let clipButtons = document.querySelectorAll('.clip-button');
 
     function hideTooltip(elem) {
         elem.firstChild.innerText = "";
@@ -597,58 +589,57 @@ function playground_text(playground, hidden = true) {
         elem.className = 'fa fa-copy tooltipped';
     }
 
-    var clipboardSnippets = new ClipboardJS('.clip-button', {
-        text: function (trigger) {
+    let clipboardSnippets = new ClipboardJS('.clip-button', {
+        text: (trigger) => {
             hideTooltip(trigger);
-            let playground = trigger.closest("pre");
-            return playground_text(playground, false);
+            return get_playground_text(trigger.closest("pre"), false);
         }
     });
 
-    Array.from(clipButtons).forEach(function (clipButton) {
-        clipButton.addEventListener('mouseout', function (e) {
-            hideTooltip(e.currentTarget);
-        });
-    });
+    Array.from(clipButtons).forEach((clipButton) =>
+        clipButton.addEventListener('mouseout', (e) => hideTooltip(e.currentTarget)));
 
-    clipboardSnippets.on('success', function (e) {
+    clipboardSnippets.on('success', (e) => {
         e.clearSelection();
         showTooltip(e.trigger, "Copied!");
     });
 
-    clipboardSnippets.on('error', function (e) {
-        showTooltip(e.trigger, "Clipboard error!");
-    });
+    clipboardSnippets.on('error', (e) => showTooltip(e.trigger, "Clipboard error!"));
 })();
 
-(function scrollToTop () {
-    var menuTitle = document.querySelector('.menu-title');
+/*===========================================================================*/
 
-    menuTitle.addEventListener('click', function () {
+(function scrollToTop () {
+    let menuTitle = document.querySelector('.menu-title');
+
+    menuTitle.addEventListener('click', () => {
         document.scrollingElement.scrollTo({ top: 0, behavior: 'smooth' });
     });
 })();
 
+/*===========================================================================*/
+
+// wtf is this...
 (function controllMenu() {
-    var menu = document.getElementById('menu-bar');
+    let menu = document.getElementById('menu-bar');
 
     (function controllPosition() {
-        var scrollTop = document.scrollingElement.scrollTop;
-        var prevScrollTop = scrollTop;
-        var minMenuY = -menu.clientHeight - 50;
-        // When the script loads, the page can be at any scroll (e.g. if you reforesh it).
+        let scrollTop = document.scrollingElement.scrollTop;
+        let prevScrollTop = scrollTop;
+        let minMenuY = -menu.clientHeight - 50;
+        // When the script loads, the page can be at any scroll (e.g. if you refresh it).
         menu.style.top = scrollTop + 'px';
         // Same as parseInt(menu.style.top.slice(0, -2), but faster
-        var topCache = menu.style.top.slice(0, -2);
+        let topCache = menu.style.top.slice(0, -2);
         menu.classList.remove('sticky');
-        var stickyCache = false; // Same as menu.classList.contains('sticky'), but faster
+        let stickyCache = false; // Same as menu.classList.contains('sticky'), but faster
         document.addEventListener('scroll', function () {
             scrollTop = Math.max(document.scrollingElement.scrollTop, 0);
             // `null` means that it doesn't need to be updated
-            var nextSticky = null;
-            var nextTop = null;
-            var scrollDown = scrollTop > prevScrollTop;
-            var menuPosAbsoluteY = topCache - scrollTop;
+            let nextSticky = null;
+            let nextTop = null;
+            let scrollDown = scrollTop > prevScrollTop;
+            let menuPosAbsoluteY = topCache - scrollTop;
             if (scrollDown) {
                 nextSticky = false;
                 if (menuPosAbsoluteY > 0) {
@@ -675,14 +666,16 @@ function playground_text(playground, hidden = true) {
             prevScrollTop = scrollTop;
         }, { passive: true });
     })();
+
     (function controllBorder() {
         menu.classList.remove('bordered');
-        document.addEventListener('scroll', function () {
-            if (menu.offsetTop === 0) {
+
+        document.addEventListener('scroll', () => {
+            if (menu.offsetTop === 0)
                 menu.classList.remove('bordered');
-            } else {
+            else
                 menu.classList.add('bordered');
-            }
         }, { passive: true });
     })();
+
 })();

@@ -1,5 +1,5 @@
 use crate::book::{Book, BookItem};
-use crate::config::{BookConfig, Config, HtmlConfig, Playground, RustEdition};
+use crate::config::{BookConfig, Config, HtmlConfig, Playground};
 use crate::errors::*;
 use crate::renderer::html_handlebars::helpers;
 use crate::renderer::{RenderContext, Renderer};
@@ -16,7 +16,7 @@ use crate::utils::fs::get_404_output_file;
 use handlebars::Handlebars;
 use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
-use regex::{Captures, Regex};
+use regex::{Captures, Regex, escape};
 use serde_json::json;
 
 #[derive(Default)]
@@ -110,7 +110,7 @@ impl HtmlHandlebars {
         debug!("Render template");
         let rendered = ctx.handlebars.render("index", &ctx.data)?;
 
-        let rendered = self.post_process(rendered, &ctx.html_config.playground, ctx.edition);
+        let rendered = self.post_process(rendered, &ctx.html_config.playground);
 
         // Write to file
         debug!("Creating {}", filepath.display());
@@ -122,7 +122,7 @@ impl HtmlHandlebars {
             ctx.data.insert("is_index".to_owned(), json!(true));
             let rendered_index = ctx.handlebars.render("index", &ctx.data)?;
             let rendered_index =
-                self.post_process(rendered_index, &ctx.html_config.playground, ctx.edition);
+                self.post_process(rendered_index, &ctx.html_config.playground);
             debug!("Creating index.html from {}", ctx_path);
             utils::fs::write_file(&ctx.destination, "index.html", rendered_index.as_bytes())?;
         }
@@ -182,8 +182,7 @@ impl HtmlHandlebars {
         data_404.insert("title".to_owned(), json!(title));
         let rendered = handlebars.render("index", &data_404)?;
 
-        let rendered =
-            self.post_process(rendered, &html_config.playground, ctx.config.rust.edition);
+        let rendered = self.post_process(rendered, &html_config.playground);
         let output_file = get_404_output_file(&html_config.input_404);
         utils::fs::write_file(destination, output_file, rendered.as_bytes())?;
         debug!("Creating 404.html ✓");
@@ -195,11 +194,10 @@ impl HtmlHandlebars {
         &self,
         rendered: String,
         playground_config: &Playground,
-        edition: Option<RustEdition>,
     ) -> String {
         let rendered = build_header_links(&rendered);
         let rendered = fix_code_blocks(&rendered);
-        let rendered = add_playground_pre(&rendered, playground_config, edition);
+        let rendered = add_playground_pre(&rendered, playground_config);
 
         rendered
     }
@@ -565,7 +563,6 @@ impl Renderer for HtmlHandlebars {
                 is_index,
                 book_config: book_config.clone(),
                 html_config: html_config.clone(),
-                edition: ctx.config.rust.edition,
                 chapter_titles: &ctx.chapter_titles,
             };
             self.render_item(item, ctx, &mut print_content)?;
@@ -589,8 +586,7 @@ impl Renderer for HtmlHandlebars {
             debug!("Render template");
             let rendered = handlebars.render("index", &data)?;
 
-            let rendered =
-                self.post_process(rendered, &html_config.playground, ctx.config.rust.edition);
+            let rendered = self.post_process(rendered, &html_config.playground);
 
             utils::fs::write_file(destination, "print.html", rendered.as_bytes())?;
             debug!("Creating print.html ✓");
@@ -856,11 +852,8 @@ fn fix_code_blocks(html: &str) -> String {
         .into_owned()
 }
 
-fn add_playground_pre(
-    html: &str,
-    playground_config: &Playground,
-    edition: Option<RustEdition>,
-) -> String {
+// NOTE: Rust devs cry in agony
+fn add_playground_pre(html: &str, playground_config: &Playground) -> String {
     static ADD_PLAYGROUND_PRE: Lazy<Regex> =
         Lazy::new(|| Regex::new(r##"((?s)<code[^>]?class="([^"]+)".*?>(.*?)</code>)"##).unwrap());
 
@@ -870,71 +863,49 @@ fn add_playground_pre(
             let classes = &caps[2];
             let code = &caps[3];
 
-            if classes.contains("language-rust") {
+			// TODO: Revisit this as right now its a bit of a mess
+            if classes.contains("language") {
                 if (!classes.contains("ignore")
                     && !classes.contains("noplayground")
                     && !classes.contains("noplaypen")
                     && playground_config.runnable)
                     || classes.contains("mdbook-runnable")
                 {
-                    let contains_e2015 = classes.contains("edition2015");
-                    let contains_e2018 = classes.contains("edition2018");
-                    let contains_e2021 = classes.contains("edition2021");
-                    let edition_class = if contains_e2015 || contains_e2018 || contains_e2021 {
-                        // the user forced edition, we should not overwrite it
-                        ""
-                    } else {
-                        match edition {
-                            Some(RustEdition::E2015) => " edition2015",
-                            Some(RustEdition::E2018) => " edition2018",
-                            Some(RustEdition::E2021) => " edition2021",
-                            None => "",
-                        }
-                    };
-
-                    // wrap the contents in an external pre block
                     format!(
-                        "<pre class=\"playground\"><code class=\"{}{}\">{}</code></pre>",
+                        "<pre data-endpoint={} class=\"playground\"><code class=\"{}\">{}</code></pre>",
+                        playground_config.endpoint,
                         classes,
-                        edition_class,
                         {
-                            let content: Cow<'_, str> = if playground_config.editable
-                                && classes.contains("editable")
-                                || text.contains("fn main")
-                                || text.contains("quick_main!")
-                            {
+                            // I have no idea what im doing, this syntax is god awful, but it works :)
+                            let content: Cow<'_, str> = if playground_config.editable && classes.contains("editable"){
                                 code.into()
                             } else {
-                                // we need to inject our own main
-                                let (attrs, code) = partition_source(code);
-
-                                format!("# #![allow(unused)]\n{}#fn main() {{\n{}#}}", attrs, code)
-                                    .into()
+                                format!("{}", code).into()
                             };
-                            hide_lines(&content)
+                            hide_lines(&content, &playground_config.hidden_str)
                         }
                     )
                 } else {
-                    format!("<code class=\"{}\">{}</code>", classes, hide_lines(code))
+                    format!("<code class=\"{}\">{}</code>", classes, hide_lines(code, &playground_config.hidden_str))
                 }
             } else {
-                // not language-rust, so no-op
                 text.to_owned()
             }
         })
         .into_owned()
 }
 
-fn hide_lines(content: &str) -> String {
-    static BORING_LINES_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\s*)#(.?)(.*)$").unwrap());
+fn hide_lines(content: &str, hidden: &str) -> String {
+    let hidden_regex = format!(r"^(\s*){}(.?)(.*)$", escape(hidden));
+    let boring_lines_regex: Regex = Regex::new(&hidden_regex).unwrap();
 
     let mut result = String::with_capacity(content.len());
     let mut lines = content.lines().peekable();
     while let Some(line) = lines.next() {
         // Don't include newline on the last line.
         let newline = if lines.peek().is_none() { "" } else { "\n" };
-        if let Some(caps) = BORING_LINES_REGEX.captures(line) {
-            if &caps[2] == "#" {
+        if let Some(caps) = boring_lines_regex.captures(line) {
+            if &caps[2] == hidden {
                 result += &caps[1];
                 result += &caps[2];
                 result += &caps[3];
@@ -958,27 +929,6 @@ fn hide_lines(content: &str) -> String {
     result
 }
 
-fn partition_source(s: &str) -> (String, String) {
-    let mut after_header = false;
-    let mut before = String::new();
-    let mut after = String::new();
-
-    for line in s.lines() {
-        let trimline = line.trim();
-        let header = trimline.chars().all(char::is_whitespace) || trimline.starts_with("#![");
-        if !header || after_header {
-            after_header = true;
-            after.push_str(line);
-            after.push('\n');
-        } else {
-            before.push_str(line);
-            before.push('\n');
-        }
-    }
-
-    (before, after)
-}
-
 struct RenderItemContext<'a> {
     handlebars: &'a Handlebars<'a>,
     destination: PathBuf,
@@ -986,7 +936,6 @@ struct RenderItemContext<'a> {
     is_index: bool,
     book_config: BookConfig,
     html_config: HtmlConfig,
-    edition: Option<RustEdition>,
     chapter_titles: &'a HashMap<PathBuf, String>,
 }
 
@@ -1026,109 +975,6 @@ mod tests {
         for (src, should_be) in inputs {
             let got = build_header_links(src);
             assert_eq!(got, should_be);
-        }
-    }
-
-    #[test]
-    fn add_playground() {
-        let inputs = [
-          ("<code class=\"language-rust\">x()</code>",
-           "<pre class=\"playground\"><code class=\"language-rust\"><span class=\"boring\">#![allow(unused)]\n</span><span class=\"boring\">fn main() {\n</span>x()\n<span class=\"boring\">}</span></code></pre>"),
-          ("<code class=\"language-rust\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust\">fn main() {}</code></pre>"),
-          ("<code class=\"language-rust editable\">let s = \"foo\n # bar\n\";</code>",
-           "<pre class=\"playground\"><code class=\"language-rust editable\">let s = \"foo\n<span class=\"boring\"> bar\n</span>\";</code></pre>"),
-          ("<code class=\"language-rust editable\">let s = \"foo\n ## bar\n\";</code>",
-           "<pre class=\"playground\"><code class=\"language-rust editable\">let s = \"foo\n # bar\n\";</code></pre>"),
-          ("<code class=\"language-rust editable\">let s = \"foo\n # bar\n#\n\";</code>",
-           "<pre class=\"playground\"><code class=\"language-rust editable\">let s = \"foo\n<span class=\"boring\"> bar\n</span><span class=\"boring\">\n</span>\";</code></pre>"),
-          ("<code class=\"language-rust ignore\">let s = \"foo\n # bar\n\";</code>",
-           "<code class=\"language-rust ignore\">let s = \"foo\n<span class=\"boring\"> bar\n</span>\";</code>"),
-          ("<code class=\"language-rust editable\">#![no_std]\nlet s = \"foo\";\n #[some_attr]</code>",
-           "<pre class=\"playground\"><code class=\"language-rust editable\">#![no_std]\nlet s = \"foo\";\n #[some_attr]</code></pre>"),
-        ];
-        for (src, should_be) in &inputs {
-            let got = add_playground_pre(
-                src,
-                &Playground {
-                    editable: true,
-                    ..Playground::default()
-                },
-                None,
-            );
-            assert_eq!(&*got, *should_be);
-        }
-    }
-    #[test]
-    fn add_playground_edition2015() {
-        let inputs = [
-          ("<code class=\"language-rust\">x()</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2015\"><span class=\"boring\">#![allow(unused)]\n</span><span class=\"boring\">fn main() {\n</span>x()\n<span class=\"boring\">}</span></code></pre>"),
-          ("<code class=\"language-rust\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2015\">fn main() {}</code></pre>"),
-          ("<code class=\"language-rust edition2015\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2015\">fn main() {}</code></pre>"),
-          ("<code class=\"language-rust edition2018\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2018\">fn main() {}</code></pre>"),
-        ];
-        for (src, should_be) in &inputs {
-            let got = add_playground_pre(
-                src,
-                &Playground {
-                    editable: true,
-                    ..Playground::default()
-                },
-                Some(RustEdition::E2015),
-            );
-            assert_eq!(&*got, *should_be);
-        }
-    }
-    #[test]
-    fn add_playground_edition2018() {
-        let inputs = [
-          ("<code class=\"language-rust\">x()</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2018\"><span class=\"boring\">#![allow(unused)]\n</span><span class=\"boring\">fn main() {\n</span>x()\n<span class=\"boring\">}</span></code></pre>"),
-          ("<code class=\"language-rust\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2018\">fn main() {}</code></pre>"),
-          ("<code class=\"language-rust edition2015\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2015\">fn main() {}</code></pre>"),
-          ("<code class=\"language-rust edition2018\">fn main() {}</code>",
-           "<pre class=\"playground\"><code class=\"language-rust edition2018\">fn main() {}</code></pre>"),
-        ];
-        for (src, should_be) in &inputs {
-            let got = add_playground_pre(
-                src,
-                &Playground {
-                    editable: true,
-                    ..Playground::default()
-                },
-                Some(RustEdition::E2018),
-            );
-            assert_eq!(&*got, *should_be);
-        }
-    }
-    #[test]
-    fn add_playground_edition2021() {
-        let inputs = [
-            ("<code class=\"language-rust\">x()</code>",
-             "<pre class=\"playground\"><code class=\"language-rust edition2021\"><span class=\"boring\">#![allow(unused)]\n</span><span class=\"boring\">fn main() {\n</span>x()\n<span class=\"boring\">}</span></code></pre>"),
-            ("<code class=\"language-rust\">fn main() {}</code>",
-             "<pre class=\"playground\"><code class=\"language-rust edition2021\">fn main() {}</code></pre>"),
-            ("<code class=\"language-rust edition2015\">fn main() {}</code>",
-             "<pre class=\"playground\"><code class=\"language-rust edition2015\">fn main() {}</code></pre>"),
-            ("<code class=\"language-rust edition2018\">fn main() {}</code>",
-             "<pre class=\"playground\"><code class=\"language-rust edition2018\">fn main() {}</code></pre>"),
-        ];
-        for (src, should_be) in &inputs {
-            let got = add_playground_pre(
-                src,
-                &Playground {
-                    editable: true,
-                    ..Playground::default()
-                },
-                Some(RustEdition::E2021),
-            );
-            assert_eq!(&*got, *should_be);
         }
     }
 }

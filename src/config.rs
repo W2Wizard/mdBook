@@ -628,6 +628,10 @@ pub struct Playground {
     pub line_numbers: bool,
     /// Display the run button. Default: `true`
     pub runnable: bool,
+	/// Submits the code to the following endpoint for running.
+	pub endpoint: String,
+	/// The string used to mark lines as hidden.
+	pub hidden_str: String
 }
 
 impl Default for Playground {
@@ -638,6 +642,8 @@ impl Default for Playground {
             copy_js: true,
             line_numbers: false,
             runnable: true,
+            endpoint: "https://play.rust-lang.org/evaluate.json".to_string(),
+            hidden_str: "!!".to_string()
         }
     }
 }
@@ -783,6 +789,8 @@ mod tests {
             copy_js: true,
             line_numbers: false,
             runnable: true,
+			endpoint: "".to_string(),
+			hidden_str: "".to_string()
         };
         let html_should_be = HtmlConfig {
             curly_quotes: true,
